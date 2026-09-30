@@ -16,13 +16,44 @@ function ytDlpAssetName(): string {
   return process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'
 }
 
+// windowsHide: a GUI host must not flash a console window per child.
+// PYTHONIOENCODING/PYTHONUTF8: piped yt-dlp on Windows otherwise writes in the
+// console codepage, which mangles non-ascii titles and file paths
+const SPAWN_OPTIONS = {
+  windowsHide: true,
+  env: {...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1'},
+}
+
+/**
+ * Kill a child and everything it spawned. yt-dlp.exe is a PyInstaller
+ * bootloader that runs python (and ffmpeg) as grandchildren, so a plain
+ * kill() on Windows leaves them running and holding the output files.
+ */
+export function killTree(child: ChildProcess): void {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
+  if (process.platform === 'win32') {
+    const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {windowsHide: true, stdio: 'ignore'})
+    killer.on('error', () => child.kill())
+  } else {
+    child.kill('SIGTERM')
+  }
+}
+
+function killOnAbort(child: ChildProcess, signal?: AbortSignal): void {
+  if (!signal) return
+  const kill = () => killTree(child)
+  if (signal.aborted) kill()
+  else signal.addEventListener('abort', kill, {once: true})
+  child.once('close', () => signal.removeEventListener('abort', kill))
+}
+
 // async on purpose: a spawnSync here blocks the event loop, which freezes
 // ink mid-frame — the user hits enter and sees nothing until it returns
 function commandWorks(cmd: string, args: string[]): Promise<boolean> {
   return new Promise(resolve => {
     let child
     try {
-      child = spawn(cmd, args, {stdio: 'ignore', timeout: 10_000})
+      child = spawn(cmd, args, {...SPAWN_OPTIONS, stdio: 'ignore', timeout: 10_000})
     } catch {
       resolve(false)
       return
@@ -59,12 +90,23 @@ export async function ensureYtDlp(onStatus: (message: string) => void, signal?: 
 }
 
 /**
- * Find ffmpeg for stream merging / mp3 extraction: system install first,
- * ffmpeg-static as fallback. Returns undefined if neither exists — yt-dlp
- * still works for single-file formats without it.
+ * Update a yoinks-managed yt-dlp binary in place. Sites break extractors
+ * all the time, so a stale copy is the most common cause of failures.
+ * Resolves true when yt-dlp reported success.
  */
-export async function findFfmpeg(): Promise<string | undefined> {
+export function selfUpdateYtDlp(ytdlp: string): Promise<boolean> {
+  return commandWorks(ytdlp, ['-U'])
+}
+
+/**
+ * Find ffmpeg for stream merging / mp3 extraction: system install first,
+ * then `bundled` (the desktop app ships its own copy), then ffmpeg-static.
+ * Returns undefined if none exists — yt-dlp still works for single-file
+ * formats without it.
+ */
+export async function findFfmpeg(bundled?: string): Promise<string | undefined> {
   if (await commandWorks('ffmpeg', ['-version'])) return undefined // on PATH, yt-dlp finds it itself
+  if (bundled && (await commandWorks(bundled, ['-version']))) return bundled
   try {
     const mod = await import('ffmpeg-static')
     const ffmpegPath = (mod.default ?? mod) as unknown as string | null
@@ -79,6 +121,7 @@ export type VideoInfo = {
   title: string
   uploader?: string
   duration?: number
+  thumbnail?: string
   webpage_url?: string
   extractor_key?: string
   formats?: RawFormat[]
@@ -105,7 +148,11 @@ export type ProbeResult = {
 
 export async function probe(ytdlp: string, url: string, signal?: AbortSignal): Promise<ProbeResult> {
   const stdout = await new Promise<string>((resolve, reject) => {
-    const child = spawn(ytdlp, ['-J', '--no-playlist', '--no-warnings', url], {signal})
+    const child = spawn(ytdlp, ['-J', '--no-playlist', '--no-warnings', url], SPAWN_OPTIONS)
+    killOnAbort(child, signal)
+    // decode as a stream — concatenating raw chunks splits multi-byte characters
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
     let out = ''
     let stderr = ''
     child.stdout.on('data', chunk => (out += chunk))
@@ -146,7 +193,7 @@ export function buildChoices(info: VideoInfo): DownloadChoice[] {
 
   const audioOnly = formats.filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
   const bestAudio = [...audioOnly].sort((a, b) => (b.abr ?? b.tbr ?? 0) - (a.abr ?? a.tbr ?? 0))[0]
-  const audioSize = bestAudio?.filesize ?? bestAudio?.filesize_approx
+  const audioSize = bestAudio ? sizeOf(bestAudio, info.duration) : undefined
 
   const videos = formats.filter(f => f.vcodec && f.vcodec !== 'none' && f.height)
   const heights = [...new Set(videos.map(f => f.height as number))].sort((a, b) => b - a)
@@ -155,7 +202,9 @@ export function buildChoices(info: VideoInfo): DownloadChoice[] {
     const candidates = videos.filter(f => f.height === height)
     const best = [...candidates].sort((a, b) => scoreVideo(b) - scoreVideo(a))[0]
     const muxed = best.acodec && best.acodec !== 'none'
-    const size = (best.filesize ?? best.filesize_approx ?? 0) + (muxed ? 0 : audioSize ?? 0)
+    const videoSize = sizeOf(best, info.duration)
+    // no video estimate means no estimate at all — the audio size alone would be a lie
+    const size = videoSize ? videoSize + (muxed ? 0 : audioSize ?? 0) : 0
     const sizeLabel = size > 0 ? ` · ~${formatBytes(size)}` : ''
     choices.push({
       kind: 'video',
@@ -187,8 +236,18 @@ export function buildChoices(info: VideoInfo): DownloadChoice[] {
   return choices
 }
 
+/** Reported size, else bitrate × duration (streamed formats like HLS carry no size). */
+function sizeOf(f: RawFormat, duration?: number): number | undefined {
+  const reported = f.filesize ?? f.filesize_approx
+  if (reported) return reported
+  const kbps = f.tbr ?? f.abr
+  return kbps && duration ? (kbps * 1000 * duration) / 8 : undefined
+}
+
 function scoreVideo(f: RawFormat): number {
   let score = f.tbr ?? 0
+  // formats with a real size make the estimate trustworthy (HLS variants have none)
+  if (f.filesize || f.filesize_approx) score += 20_000
   if (f.ext === 'mp4') score += 10_000
   if (f.vcodec?.startsWith('avc')) score += 5_000
   return score
@@ -213,7 +272,9 @@ const PROGRESS_PREFIX = 'YOINK|'
 const PROGRESS_TEMPLATE = `${PROGRESS_PREFIX}%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s`
 
 let activeChild: ChildProcess | undefined
-process.on('exit', () => activeChild?.kill('SIGTERM'))
+process.on('exit', () => {
+  if (activeChild) killTree(activeChild)
+})
 
 export function download(
   opts: {
@@ -249,8 +310,9 @@ export function download(
   if (opts.ffmpegLocation) args.push('--ffmpeg-location', opts.ffmpegLocation)
 
   return new Promise((resolve, reject) => {
-    const child = spawn(opts.ytdlp, args, {signal})
+    const child = spawn(opts.ytdlp, args, SPAWN_OPTIONS)
     activeChild = child
+    killOnAbort(child, signal)
 
     let stderr = ''
     let filepath = ''
@@ -261,8 +323,10 @@ export function download(
     // every file yt-dlp writes this run, so a cancel can clean up after itself
     const destinations: string[] = []
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString()
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      buffer += chunk
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
       for (const rawLine of lines) {

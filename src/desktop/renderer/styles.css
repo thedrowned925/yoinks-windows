@@ -1,0 +1,387 @@
+/* same palettes as the terminal themes in src/theme.ts */
+:root,
+[data-theme='dark'] {
+  --background: #18181b;
+  --primary: #ffffff;
+  --gray: #a1a1aa;
+  --line: #3f3f46;
+  --hover: #27272a;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --background: #ffffff;
+  --primary: #18181b;
+  --gray: #52525b;
+  --line: #d4d4d8;
+  --hover: #f4f4f5;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--primary);
+  font-family: 'Cascadia Mono', 'Cascadia Code', 'JetBrains Mono', Consolas, ui-monospace, monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 1px dashed var(--gray);
+  outline-offset: 3px;
+}
+
+p {
+  margin: 0;
+}
+
+.primary {
+  color: var(--primary);
+}
+
+.muted {
+  color: var(--gray);
+}
+
+/* ── frame ─────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app.dragging::after {
+  content: '';
+  position: fixed;
+  inset: 44px 8px 40px;
+  border: 1px dashed var(--gray);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.titlebar {
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 12px;
+  -webkit-app-region: drag;
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 32px 16px;
+  text-align: center;
+  overflow: auto;
+}
+
+.logo {
+  width: 288px;
+  height: 72px;
+  flex-shrink: 0;
+  margin-bottom: 14px;
+  shape-rendering: crispEdges;
+}
+
+.tagline {
+  margin-bottom: 2px;
+}
+
+/* every phase gets the same box so switching between them never jumps */
+.phase {
+  width: 100%;
+  min-height: 280px;
+  margin: 36px 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 720px;
+}
+
+/* ── framed input: border with the title on it, button forged to the edge ── */
+
+.framed {
+  display: flex;
+  width: 100%;
+  max-width: 640px;
+}
+
+.framed fieldset {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 2px 14px 8px;
+  border: 1px solid var(--gray);
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.framed fieldset,
+.panel {
+  text-align: left;
+}
+
+.framed legend,
+.panel legend {
+  padding: 0 8px;
+  margin-left: 2px;
+}
+
+.framed input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0;
+  caret-color: var(--primary);
+  user-select: text;
+}
+
+.framed input::placeholder {
+  color: var(--gray);
+  opacity: 0.8;
+}
+
+.framed .url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.yoink {
+  flex-shrink: 0;
+  /* sits on the fieldset's border box, below the legend's half-height */
+  margin-top: 11px;
+  padding: 0 26px;
+  background: var(--primary);
+  color: var(--background);
+  font-weight: 700;
+  border-radius: 0 6px 6px 0;
+}
+
+.yoink:hover {
+  opacity: 0.88;
+}
+
+.yoink:disabled {
+  background: var(--gray);
+  cursor: default;
+}
+
+.note {
+  min-height: 1.5em;
+}
+
+.link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── picker ─────────────────────────────────────────────── */
+
+.picker {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+  width: 100%;
+  max-width: 860px;
+  text-align: left;
+}
+
+.details {
+  flex: 1;
+  min-width: 0;
+  padding-top: 16px;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.panel {
+  flex-shrink: 0;
+  width: 340px;
+  margin: 0;
+  padding: 4px 8px 10px;
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+}
+
+.panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.choice {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-align: left;
+  white-space: pre;
+  color: var(--primary);
+}
+
+.choice.active {
+  background: var(--hover);
+  font-weight: 700;
+}
+
+.cursor {
+  width: 1ch;
+}
+
+/* ── download / done / error ────────────────────────────── */
+
+.bar {
+  white-space: pre;
+  letter-spacing: -0.5px;
+}
+
+.path {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.error {
+  font-weight: 700;
+  max-width: 640px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.outline,
+.solid {
+  padding: 6px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--gray);
+}
+
+.outline:hover {
+  background: var(--hover);
+}
+
+.solid {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--background);
+  font-weight: 700;
+}
+
+.solid:hover {
+  opacity: 0.88;
+}
+
+/* ── shortcuts & status bar ─────────────────────────────── */
+
+.hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.hints > * + *::before {
+  content: '·';
+  color: var(--gray);
+  margin: 0 14px;
+}
+
+.hint {
+  white-space: nowrap;
+}
+
+button.hint:hover .muted {
+  color: var(--primary);
+}
+
+.statusbar {
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px;
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.spacer {
+  flex: 1;
+}

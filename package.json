@@ -1,20 +1,23 @@
 {
   "name": "yoinks",
   "version": "0.3.1",
-  "description": "yoink any video from YouTube, X, Instagram, Threads & 1800+ sites — right from your terminal. paste. yoink. done.",
+  "description": "yoink any video from YouTube, X, Instagram, Threads & 1800+ sites — a Windows desktop app and a terminal tool. paste. yoink. done.",
   "type": "module",
   "bin": {
     "yoinks": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist/*.js"
   ],
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsup",
     "dev": "tsup --watch",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win",
+    "icon": "node scripts/make-icon.mjs",
     "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "start": "node dist/cli.js",
@@ -31,7 +34,10 @@
     "threads",
     "cli",
     "tui",
-    "ink"
+    "ink",
+    "windows",
+    "desktop",
+    "electron"
   ],
   "license": "MIT",
   "dependencies": {
@@ -44,16 +50,74 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.3.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "react-dom": "^19.3.0",
     "tsup": "^8.5.1",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pablostanley/yoinks.git"
+    "url": "git+https://github.com/thedrowned925/yoinks-windows.git"
   },
-  "homepage": "https://github.com/pablostanley/yoinks#readme",
+  "homepage": "https://github.com/thedrowned925/yoinks-windows#readme",
   "bugs": {
-    "url": "https://github.com/pablostanley/yoinks/issues"
+    "url": "https://github.com/thedrowned925/yoinks-windows/issues"
+  },
+  "main": "dist/desktop/main.cjs",
+  "build": {
+    "appId": "com.yoinks.desktop",
+    "productName": "yoinks",
+    "executableName": "yoinks",
+    "copyright": "MIT © Pablo Stanley and contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/desktop/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "yoinks-${version}-${arch}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "yoinks-${version}-${arch}-portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "yoinks",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    }
   }
 }

@@ -1,7 +1,7 @@
 import React, {createContext, type ReactNode, useContext} from 'react'
+import type {ThemeMode} from './theme-mode.js'
 
-export const THEME_MODES = ['auto', 'light', 'dark'] as const
-export type ThemeMode = (typeof THEME_MODES)[number]
+export {isThemeMode, nextThemeMode, THEME_MODES, type ThemeMode} from './theme-mode.js'
 
 export type Theme = {
   mode: ThemeMode
@@ -58,12 +58,4 @@ export function ThemeProvider({mode, children}: {mode: ThemeMode; children: Reac
 
 export function useTheme(): Theme {
   return useContext(ThemeContext)
-}
-
-export function isThemeMode(value: unknown): value is ThemeMode {
-  return typeof value === 'string' && (THEME_MODES as readonly string[]).includes(value)
-}
-
-export function nextThemeMode(mode: ThemeMode): ThemeMode {
-  return THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length]!
 }

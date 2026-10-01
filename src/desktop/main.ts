@@ -14,6 +14,7 @@ import {
   type DownloadChoice,
   type DownloadProgress,
 } from '../lib/ytdlp.js'
+import {t} from '../i18n.js'
 import {isThemeMode} from '../theme-mode.js'
 import type {AppInit, PaletteColors, ProbeResponse, Settings} from './api.js'
 
@@ -142,7 +143,7 @@ ipcMain.handle('probe', async (_event, url: string): Promise<ProbeResponse> => {
       void maybeUpdateYtDlp(ytdlp)
     }
     if (controller.signal.aborted) return {ok: false, cancelled: true}
-    send('probe:status', 'fetching video info…')
+    send('probe:status', t.fetchingInfo)
     const {info, infoJsonPath} = await probe(ytdlp, url, controller.signal)
     if (controller.signal.aborted) return {ok: false, cancelled: true}
     const choices = buildChoices(info)
@@ -164,7 +165,7 @@ ipcMain.handle('probe', async (_event, url: string): Promise<ProbeResponse> => {
 ipcMain.handle('download', async (_event, index: number) => {
   const current = session
   const choice = current?.choices[index]
-  if (!current || !choice) return {ok: false, error: 'Nothing to download — paste a link first.'}
+  if (!current || !choice) return {ok: false, error: t.nothingToDownload}
   cancelActive()
   const controller = new AbortController()
   abort = controller
@@ -227,7 +228,7 @@ ipcMain.handle('settings:set', (_event, patch: Partial<Settings>) => {
 ipcMain.handle('folder:pick', async () => {
   if (!win || win.isDestroyed()) return undefined
   const result = await dialog.showOpenDialog(win, {
-    title: 'Save downloads to…',
+    title: t.saveDialogTitle,
     defaultPath: settings.outDir,
     properties: ['openDirectory', 'createDirectory'],
   })

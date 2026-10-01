@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {Readable} from 'node:stream'
 import {pipeline} from 'node:stream/promises'
+import {t} from '../i18n.js'
 import {formatBytes} from './format.js'
 
 const YOINKS_DIR = path.join(os.homedir(), '.yoinks', 'bin')
@@ -73,13 +74,13 @@ export async function ensureYtDlp(onStatus: (message: string) => void, signal?: 
   const local = path.join(YOINKS_DIR, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
   if (await commandWorks(local, ['--version'])) return local
 
-  onStatus('first run: fetching yt-dlp…')
+  onStatus(t.firstRun)
   await fs.mkdir(YOINKS_DIR, {recursive: true})
 
   const url = `${RELEASE_BASE}/${ytDlpAssetName()}`
   const response = await fetch(url, {signal})
   if (!response.ok || !response.body) {
-    throw new Error(`Could not download yt-dlp (${response.status}). Check your connection and try again.`)
+    throw new Error(t.ytdlpDownloadFailed(response.status))
   }
 
   const tmp = `${local}.download`
@@ -160,7 +161,7 @@ export async function probe(ytdlp: string, url: string, signal?: AbortSignal): P
     child.on('error', reject)
     child.on('close', code => {
       if (code !== 0) {
-        reject(new Error(cleanYtDlpError(stderr) || `yt-dlp exited with code ${code}`))
+        reject(new Error(cleanYtDlpError(stderr) || t.ytdlpExit(code ?? -1)))
       } else {
         resolve(out)
       }
@@ -171,7 +172,7 @@ export async function probe(ytdlp: string, url: string, signal?: AbortSignal): P
   try {
     info = JSON.parse(stdout) as VideoInfo
   } catch {
-    throw new Error('Could not parse video info from yt-dlp.')
+    throw new Error(t.videoInfoParse)
   }
 
   const infoJsonPath = path.join(os.tmpdir(), `yoinks-info-${process.pid}-${Date.now()}.json`)
@@ -221,7 +222,7 @@ export function buildChoices(info: VideoInfo): DownloadChoice[] {
   if (choices.length === 0) {
     choices.push({
       kind: 'video',
-      label: 'best available · mp4',
+      label: t.bestAvailable,
       args: ['-f', 'bv*+ba/b', '--merge-output-format', 'mp4'],
     })
   }
@@ -229,7 +230,7 @@ export function buildChoices(info: VideoInfo): DownloadChoice[] {
   const audioSizeLabel = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
   choices.push({
     kind: 'audio',
-    label: `audio only · mp3${audioSizeLabel}`,
+    label: `${t.audioOnly}${audioSizeLabel}`,
     args: ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'],
   })
 
@@ -368,13 +369,13 @@ export function download(
       if (signal?.aborted) {
         // cancelled on purpose — don't leave half-written files behind
         void removePartials(destinations)
-        reject(new Error('Download cancelled.'))
+        reject(new Error(t.downloadCancelled))
         return
       }
       if (code === 0 && filepath) {
         resolve(filepath)
       } else {
-        reject(new Error(cleanYtDlpError(stderr) || `Download failed (yt-dlp exit code ${code}).`))
+        reject(new Error(cleanYtDlpError(stderr) || t.downloadFailed(code ?? -1)))
       }
     })
   })

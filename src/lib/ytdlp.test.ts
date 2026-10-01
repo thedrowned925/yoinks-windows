@@ -36,5 +36,5 @@ test('an unknown video size never shows just the audio size', () => {
   }
   const [video, audioChoice] = buildChoices(info)
   assert.equal(video!.label, '480p · mp4')
-  assert.equal(audioChoice!.label, 'audio only · mp3 · ~2.9 MB')
+  assert.equal(audioChoice!.label, 'sadece ses · mp3 · ~2.9 MB')
 })

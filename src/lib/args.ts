@@ -1,3 +1,4 @@
+import {t} from '../i18n.js'
 import {isThemeMode, type ThemeMode} from '../theme.js'
 
 export type CliArgs = {
@@ -20,21 +21,21 @@ export function parseArgs(args: string[]): CliArgs {
       result.version = true
     } else if (arg === '--theme') {
       const value = args[++index]
-      if (!value) return {...result, error: '--theme needs a value: auto, light, or dark'}
-      if (!isThemeMode(value)) return {...result, error: `unknown theme “${value}” — use auto, light, or dark`}
+      if (!value) return {...result, error: t.themeNeedsValue}
+      if (!isThemeMode(value)) return {...result, error: t.unknownTheme(value)}
       result.themeMode = value
     } else if (arg.startsWith('--theme=')) {
       const value = arg.slice('--theme='.length)
-      if (!isThemeMode(value)) return {...result, error: `unknown theme “${value}” — use auto, light, or dark`}
+      if (!isThemeMode(value)) return {...result, error: t.unknownTheme(value)}
       result.themeMode = value
     } else if (arg.startsWith('-')) {
-      return {...result, error: `unknown option “${arg}”`}
+      return {...result, error: t.unknownOption(arg)}
     } else {
       positional.push(arg)
     }
   }
 
-  if (positional.length > 1) return {...result, error: 'expected a single url'}
+  if (positional.length > 1) return {...result, error: t.expectedSingleUrl}
   result.initialUrl = positional[0]
   return result
 }

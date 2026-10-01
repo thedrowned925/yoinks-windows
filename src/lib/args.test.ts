@@ -22,10 +22,10 @@ test('parses an equals-style theme option after the url', () => {
 })
 
 test('rejects missing, invalid, and unknown options', () => {
-  assert.match(parseArgs(['--theme']).error ?? '', /needs a value/)
-  assert.match(parseArgs(['--theme', 'sepia']).error ?? '', /unknown theme/)
-  assert.match(parseArgs(['--wat']).error ?? '', /unknown option/)
-  assert.match(parseArgs(['one', 'two']).error ?? '', /single url/)
+  assert.match(parseArgs(['--theme']).error ?? '', /değer gerektiriyor/)
+  assert.match(parseArgs(['--theme', 'sepia']).error ?? '', /bilinmeyen tema/)
+  assert.match(parseArgs(['--wat']).error ?? '', /bilinmeyen seçenek/)
+  assert.match(parseArgs(['one', 'two']).error ?? '', /tek bir url/)
 })
 
 test('recognizes only supported modes and cycles through all of them', () => {

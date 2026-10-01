@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {formatBytes, formatDuration, formatEta, formatSpeed, shortenPath, truncate} from '../../lib/format.js'
 import {detectPlatform, isProbablyUrl} from '../../lib/platforms.js'
+import {t} from '../../i18n.js'
 import {nextThemeMode, type ThemeMode} from '../../theme-mode.js'
 import type {AppInit, ChoiceSummary, DownloadProgress, InfoSummary, Platform, YoinksApi} from '../api.js'
 import {Logo} from './logo.js'
@@ -13,8 +14,8 @@ declare global {
 
 const api = window.yoinks
 
-const TAGLINE = 'yoink any video. paste. yoink. done.'
-const SITES = 'youtube · x · instagram · threads · tiktok · +1800 more'
+const TAGLINE = t.tagline
+const SITES = t.sites
 const BAR_CELLS = 36
 
 // matches the terminal palettes in src/theme.ts
@@ -73,14 +74,14 @@ function ProgressBar({percent}: {percent: number}) {
 }
 
 function partLabel(progress: DownloadProgress): string {
-  return progress.totalParts > 1 ? `part ${progress.part + 1}/${progress.totalParts}  ·  ` : ''
+  return progress.totalParts > 1 ? `${t.partLabel(progress.part + 1, progress.totalParts).trim()}  ·  ` : ''
 }
 
 function downloadMeta(progress: DownloadProgress): string {
   const parts = [
     progress.totalBytes ? `${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}` : '',
     progress.speed ? formatSpeed(progress.speed) : '',
-    progress.eta ? `${formatEta(progress.eta)} left` : '',
+    progress.eta ? `${formatEta(progress.eta)} ${t.left}` : '',
   ].filter(Boolean)
   return `${partLabel(progress)}${parts.join('  ·  ')}`
 }
@@ -143,7 +144,7 @@ export function App() {
     setUrl(target)
     setPlatform(detectPlatform(target))
     setThumbFailed(false)
-    setPhase({name: 'probing', status: 'warming up…'})
+    setPhase({name: 'probing', status: t.warmingUp})
     const result = await api.probe(target)
     if (run !== runRef.current) return
     if (result.ok) {
@@ -153,7 +154,7 @@ export function App() {
       setHighlight(0)
       setPhase({name: 'picking'})
     } else if (!result.cancelled) {
-      setPhase({name: 'error', message: result.error ?? 'Something went wrong.'})
+      setPhase({name: 'error', message: result.error ?? t.somethingWentWrong})
     }
   }, [])
 
@@ -161,7 +162,7 @@ export function App() {
     (value: string) => {
       const trimmed = value.trim()
       if (!isProbablyUrl(trimmed)) {
-        setPhase({name: 'input', warning: 'that doesn’t look like a link — paste a full url'})
+        setPhase({name: 'input', warning: t.badLink})
         return
       }
       void startProbe(trimmed)
@@ -199,7 +200,7 @@ export function App() {
         setHistory(result.history)
         setPhase({name: 'done', filepath: result.filepath})
       } else if (!result.cancelled) {
-        setPhase({name: 'error', message: result.error ?? 'Download failed.'})
+        setPhase({name: 'error', message: result.error ?? t.downloadFailedGeneric})
       }
     },
     [choices],
@@ -326,7 +327,7 @@ export function App() {
       setUrlInput(text)
       submitUrl(text)
     } else {
-      setPhase({name: 'input', warning: 'drop a link — files and text don’t work here'})
+      setPhase({name: 'input', warning: t.dropLink})
     }
   }
 
@@ -374,22 +375,22 @@ export function App() {
   switch (phase.name) {
     case 'input':
       hints.push({key: '↵', label: 'yoink', action: () => submitUrl(urlInput)})
-      if (history.length > 0) hints.push({key: '↑', label: 'history'})
+      if (history.length > 0) hints.push({key: '↑', label: t.hintHistory})
       break
     case 'probing':
     case 'downloading':
-      hints.push({key: 'esc', label: 'cancel', action: cancelRun})
+      hints.push({key: 'esc', label: t.hintCancel, action: cancelRun})
       break
     case 'picking':
-      hints.push({key: '↑↓', label: 'choose'}, {key: '↵', label: 'yoink', action: () => void pick(highlight)})
-      hints.push({key: 'esc', label: 'back', action: resetToInput})
+      hints.push({key: '↑↓', label: t.hintChoose}, {key: '↵', label: 'yoink', action: () => void pick(highlight)})
+      hints.push({key: 'esc', label: t.hintBack, action: resetToInput})
       break
     case 'done':
     case 'error':
-      hints.push({key: 'esc', label: 'start over', action: resetToInput})
+      hints.push({key: 'esc', label: t.startOver, action: resetToInput})
       break
   }
-  hints.push({key: '^t', label: `theme:${themeMode}`, action: cycleTheme})
+  hints.push({key: '^t', label: t.themeLabel(themeMode), action: cycleTheme})
 
   return (
     <div
@@ -403,7 +404,7 @@ export function App() {
       </header>
 
       <main className="stage">
-        <Logo onClick={goHome} title={phase.name === 'input' ? 'yoinks' : 'back to start'} />
+        <Logo onClick={goHome} title={phase.name === 'input' ? 'yoinks' : t.backToStart} />
         <p className="tagline primary">{TAGLINE}</p>
         <p className="muted">{SITES}</p>
 
@@ -418,7 +419,7 @@ export function App() {
                 }}
               >
                 <fieldset>
-                  <legend className="primary">Paste a link</legend>
+                  <legend className="primary">{t.pasteLink}</legend>
                   <span className="prompt primary">❯</span>
                   <input
                     ref={inputRef}
@@ -432,7 +433,7 @@ export function App() {
                     }}
                     onKeyDown={onInputKeyDown}
                     onPaste={onPaste}
-                    aria-label="Video link"
+                    aria-label={t.videoLink}
                   />
                 </fieldset>
                 <button type="submit" className="yoink">
@@ -443,15 +444,15 @@ export function App() {
                 {phase.warning ? (
                   <>✗ {phase.warning}</>
                 ) : dragging ? (
-                  <>drop it — we’ll yoink it</>
+                  <>{t.dropIt}</>
                 ) : clipboardOffered ? (
                   <button type="button" className="link" onClick={() => setUrlInput(clipboardUrl!)}>
-                    link in your clipboard — ⇥ to paste it
+                    {t.clipboardOffer}
                   </button>
                 ) : clipboardAccepted ? (
-                  <>from your clipboard — ↵ to yoink it</>
+                  <>{t.clipboardAccepted}</>
                 ) : (
-                  <>or drag a link onto this window</>
+                  <>{t.dragHint}</>
                 )}
               </p>
             </div>
@@ -461,7 +462,7 @@ export function App() {
             <div className="column">
               <div className="framed busy">
                 <fieldset>
-                  <legend className="primary">{platform ? platform.label : 'Paste a link'}</legend>
+                  <legend className="primary">{platform ? platform.label : t.pasteLink}</legend>
                   <span className="prompt primary">❯</span>
                   <span className="url muted">{url}</span>
                 </fieldset>
@@ -489,8 +490,8 @@ export function App() {
                 </p>
               </div>
               <fieldset className="panel">
-                <legend className="primary">Download</legend>
-                <ul role="listbox" aria-label="Formats">
+                <legend className="primary">{t.download}</legend>
+                <ul role="listbox" aria-label={t.formats}>
                   {choices.map((choice, index) => (
                     <li key={choice.label} role="option" aria-selected={index === highlight}>
                       <button
@@ -520,7 +521,7 @@ export function App() {
                 <>
                   <ProgressBar percent={1} />
                   <p className="muted">
-                    <Spinner /> processing…
+                    <Spinner /> {t.processing}
                   </p>
                 </>
               ) : phase.progress?.totalBytes ? (
@@ -532,7 +533,7 @@ export function App() {
                 <>
                   <ProgressBar percent={0} />
                   <p className="muted">
-                    <Spinner /> downloading… {partLabel(phase.progress)}
+                    <Spinner /> {t.downloading} {partLabel(phase.progress)}
                     {formatBytes(phase.progress.downloadedBytes)}
                     {phase.progress.speed ? `  ·  ${formatSpeed(phase.progress.speed)}` : ''}
                   </p>
@@ -541,7 +542,7 @@ export function App() {
                 <>
                   <ProgressBar percent={0} />
                   <p className="muted">
-                    <Spinner /> {phase.refreshing ? 'link expired — grabbing a fresh one…' : 'starting download…'}
+                    <Spinner /> {phase.refreshing ? t.linkExpired : t.startingDownload}
                   </p>
                 </>
               )}
@@ -551,20 +552,20 @@ export function App() {
           {phase.name === 'done' && (
             <div className="column">
               <p>
-                <strong className="primary">✓ yoinked!</strong> <span className="primary">find your file in:</span>
+                <strong className="primary">{t.done}</strong> <span className="primary">{t.findFile}</span>
               </p>
               <p className="muted path" title={phase.filepath}>
                 {shortenPath(phase.filepath, homedir, 72)}
               </p>
               <div className="actions">
                 <button type="button" className="outline" onClick={() => void api.openPath(phase.filepath)}>
-                  ▶ open
+                  {t.open}
                 </button>
                 <button type="button" className="outline" onClick={() => void api.showItem(phase.filepath)}>
-                  ⌂ show in folder
+                  {t.showInFolder}
                 </button>
                 <button type="button" className="solid" onClick={resetToInput} autoFocus>
-                  ↵ yoink another
+                  {t.yoinkAnother}
                 </button>
               </div>
             </div>
@@ -575,7 +576,7 @@ export function App() {
               <p className="error primary">✗ {phase.message}</p>
               <div className="actions">
                 <button type="button" className="solid" onClick={resetToInput} autoFocus>
-                  ↵ try again
+                  {t.tryAgain}
                 </button>
               </div>
             </div>
@@ -586,12 +587,12 @@ export function App() {
       </main>
 
       <footer className="statusbar">
-        <button type="button" className="hint" onClick={() => void changeFolder()} title="Change download folder">
-          <span className="muted">saving to</span> <span className="primary">{shortenPath(outDir, homedir, 48)}</span>{' '}
-          <span className="muted">· change</span>
+        <button type="button" className="hint" onClick={() => void changeFolder()} title={t.changeFolderTitle}>
+          <span className="muted">{t.savingTo}</span> <span className="primary">{shortenPath(outDir, homedir, 48)}</span>{' '}
+          <span className="muted">· {t.change}</span>
         </button>
-        <button type="button" className="hint" onClick={() => void api.openPath(outDir)} title="Open download folder">
-          <span className="muted">open folder</span>
+        <button type="button" className="hint" onClick={() => void api.openPath(outDir)} title={t.openFolderTitle}>
+          <span className="muted">{t.openFolder}</span>
         </button>
         <span className="spacer" />
         <span className="muted">v{init?.version}</span>

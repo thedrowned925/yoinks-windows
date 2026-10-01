@@ -1,6 +1,6 @@
 {
   "name": "yoinks",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "yoink any video from YouTube, X, Instagram, Threads & 1800+ sites — a Windows desktop app and a terminal tool. paste. yoink. done.",
   "type": "module",
   "bin": {

@@ -1,3 +1,5 @@
+import {t} from '../i18n.js'
+
 export type Platform = {
   key: string
   label: string
@@ -20,7 +22,7 @@ export function detectPlatform(url: string): Platform {
   try {
     hostname = new URL(url).hostname.toLowerCase()
   } catch {
-    return {key: 'unknown', label: 'Unknown site'}
+    return {key: 'unknown', label: t.unknownSite}
   }
 
   for (const {hosts, platform} of PLATFORMS) {

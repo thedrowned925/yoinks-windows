@@ -11,6 +11,7 @@ import {Panel} from './components/panel.js'
 import {ProgressBar} from './components/progress-bar.js'
 import {Shortcuts} from './components/shortcuts.js'
 import {TextInput} from './components/text-input.js'
+import {ACTION, t} from './i18n.js'
 import {clickTargetAt, findFrameRow, frameRowSpan, type ClickTarget} from './lib/click-map.js'
 import {formatBytes, formatDuration, formatEta, formatSpeed, shortenPath, truncate, wrapText} from './lib/format.js'
 import {addToHistory, loadHistory} from './lib/history.js'
@@ -29,9 +30,9 @@ import {
 } from './lib/ytdlp.js'
 
 const OUT_DIR = path.join(os.homedir(), 'Downloads')
-const YOINK_BUTTON = 'yoink'
-const DONE_LABEL = '↵ yoink another'
-const TAGLINE = 'yoink any video. paste. yoink. done.'
+const YOINK_BUTTON = ACTION
+const DONE_LABEL = `↵ ${t.yoinkAnother.replace(/^↵\s*/, '')}`
+const TAGLINE = t.tagline
 
 const choiceLabel = (choice: DownloadChoice) => `${choice.kind === 'audio' ? '♪ ' : '▶ '}${choice.label}`
 
@@ -68,12 +69,12 @@ const Gap = ({lines = 1}: {lines?: number}) => (
 // otherwise the whole layout shifts on every progress update
 function partLabel(progress: DownloadProgress): string {
   // explains the bar resetting between files (video, then audio)
-  return progress.totalParts > 1 ? `part ${progress.part + 1}/${progress.totalParts}  ` : ''
+  return progress.totalParts > 1 ? t.partLabel(progress.part + 1, progress.totalParts) : ''
 }
 
 function downloadMeta(progress: DownloadProgress): string {
   const speed = progress.speed ? formatSpeed(progress.speed) : ''
-  const eta = progress.eta ? `${formatEta(progress.eta)} left` : ''
+  const eta = progress.eta ? `${formatEta(progress.eta)} ${t.left}` : ''
   return `${partLabel(progress)}${speed.padStart(10)}  ${eta.padEnd(12)}`
 }
 
@@ -101,27 +102,27 @@ type Phase =
 
 const HINTS: Record<Phase['name'], Array<[string, string]>> = {
   input: [
-    ['↵', 'yoink'],
-    ['^c', 'quit'],
+    ['↵', ACTION],
+    ['^c', t.hintQuit],
   ],
   probing: [
-    ['esc', 'cancel'],
-    ['^c', 'quit'],
+    ['esc', t.hintCancel],
+    ['^c', t.hintQuit],
   ],
   picking: [
-    ['↑↓', 'choose'],
-    ['↵', 'yoink'],
-    ['esc', 'back'],
-    ['^c', 'quit'],
+    ['↑↓', t.hintChoose],
+    ['↵', ACTION],
+    ['esc', t.hintBack],
+    ['^c', t.hintQuit],
   ],
   downloading: [
-    ['esc', 'cancel'],
-    ['^c', 'quit'],
+    ['esc', t.hintCancel],
+    ['^c', t.hintQuit],
   ],
-  done: [['^c', 'quit']],
+  done: [['^c', t.hintQuit]],
   error: [
-    ['↵', 'try again'],
-    ['^c', 'quit'],
+    ['↵', t.tryAgain.replace(/^↵\s*/, '')],
+    ['^c', t.hintQuit],
   ],
 }
 
@@ -169,7 +170,9 @@ function AppContent({
   const highlightRef = useRef(0) // choice under the cursor, for the ↵ hint click
   const infoJsonRef = useRef<string | undefined>(undefined)
   const abortRef = useRef<AbortController | undefined>(undefined)
-  const [phase, setPhase] = useState<Phase>(initialUrl ? {name: 'probing', status: 'warming up…'} : {name: 'input'})
+  const [phase, setPhase] = useState<Phase>(
+    initialUrl ? {name: 'probing', status: t.warmingUp} : {name: 'input'},
+  )
 
   const columns = stdout?.columns && stdout.columns > 0 ? stdout.columns : 80
   const boxWidth = Math.max(14, Math.min(64, columns - 6))
@@ -179,14 +182,14 @@ function AppContent({
     const controller = new AbortController()
     abortRef.current = controller
     setPlatform(detectPlatform(targetUrl))
-    setPhase({name: 'probing', status: 'warming up…'})
+    setPhase({name: 'probing', status: t.warmingUp})
     try {
       const ytdlp =
         ytdlpRef.current ||
         (await ensureYtDlp(status => setPhase({name: 'probing', status}), controller.signal))
       ytdlpRef.current = ytdlp
       if (controller.signal.aborted) return
-      setPhase({name: 'probing', status: 'fetching video info…'})
+      setPhase({name: 'probing', status: t.fetchingInfo})
       const {info: videoInfo, infoJsonPath} = await probe(ytdlp, targetUrl, controller.signal)
       if (controller.signal.aborted) return
       infoJsonRef.current = infoJsonPath
@@ -235,7 +238,7 @@ function AppContent({
   const handleUrlSubmit = (value: string) => {
     const trimmed = value.trim()
     if (!isProbablyUrl(trimmed)) {
-      setPhase({name: 'input', warning: 'that doesn’t look like a link — paste a full url'})
+      setPhase({name: 'input', warning: t.badLink})
       return
     }
     setUrl(trimmed)
@@ -282,9 +285,9 @@ function AppContent({
     })()
   }
 
-  let hints: Array<[string, string]> = [...HINTS[phase.name], ['^t', `theme:${theme.mode}`]]
+  let hints: Array<[string, string]> = [...HINTS[phase.name], ['^t', t.themeLabel(theme.mode)]]
   if (phase.name === 'input' && history.length > 0) {
-    hints = [hints[0]!, ['↑', 'history'], ...hints.slice(1)]
+    hints = [hints[0]!, ['↑', t.hintHistory], ...hints.slice(1)]
   }
 
   // Anything a mouse user would expect to press is clickable. Targets are
@@ -341,12 +344,12 @@ function AppContent({
       <Logo />
       <Gap />
       <Text color={theme.primary}>{TAGLINE}</Text>
-      <Text color={theme.gray} dimColor={theme.dimSecondary}>youtube · x · instagram · threads · tiktok · +1800 more</Text>
+      <Text color={theme.gray} dimColor={theme.dimSecondary}>{t.sites}</Text>
       <Gap />
 
       {phase.name === 'input' && (
         <Box flexDirection="column" alignItems="center">
-          <FramedInput title="Paste a link" width={boxWidth} button={YOINK_BUTTON}>
+          <FramedInput title={t.pasteLink} width={boxWidth} button={YOINK_BUTTON}>
             <TextInput
               value={urlInput}
               onChange={setUrlInput}
@@ -363,16 +366,16 @@ function AppContent({
           {phase.warning ? (
             <Text color={theme.gray} dimColor={theme.dimSecondary}>✗ {phase.warning}</Text>
           ) : clipboardOffered ? (
-            <Text color={theme.gray} dimColor={theme.dimSecondary}>link in your clipboard — ⇥ to paste it</Text>
+            <Text color={theme.gray} dimColor={theme.dimSecondary}>{t.clipboardOffer}</Text>
           ) : clipboardAccepted ? (
-            <Text color={theme.gray} dimColor={theme.dimSecondary}>from your clipboard — ↵ to yoink it</Text>
+            <Text color={theme.gray} dimColor={theme.dimSecondary}>{t.clipboardAccepted}</Text>
           ) : null}
         </Box>
       )}
 
       {phase.name === 'probing' && (
         <Box flexDirection="column" alignItems="center">
-          <FramedInput title={platform ? platform.label : 'Paste a link'} width={boxWidth} button={YOINK_BUTTON} buttonDim>
+          <FramedInput title={platform ? platform.label : t.pasteLink} width={boxWidth} button={YOINK_BUTTON} buttonDim>
             <Text color={theme.gray} dimColor={theme.dimSecondary}>{url.length > boxWidth - 8 ? `${url.slice(0, boxWidth - 9)}…` : url}</Text>
           </FramedInput>
         </Box>
@@ -395,7 +398,7 @@ function AppContent({
               {info?.uploader ? ` · ${info.uploader}` : ''}
             </Text>
           </Box>
-          <Panel title="Download" width={38}>
+          <Panel title={t.download} width={38}>
             <SelectInput
               indicatorComponent={ChoiceIndicator}
               itemComponent={ChoiceItem}
@@ -427,7 +430,7 @@ function AppContent({
                 <Text color={theme.primary}>
                   <Spinner type="dots" />
                 </Text>
-                <Text color={theme.gray} dimColor={theme.dimSecondary}> processing…</Text>
+                <Text color={theme.gray} dimColor={theme.dimSecondary}> {t.processing}</Text>
               </Text>
             </>
           ) : phase.progress?.totalBytes ? (
@@ -442,7 +445,7 @@ function AppContent({
                 <Text color={theme.primary}>
                   <Spinner type="dots" />
                 </Text>
-                <Text color={theme.gray} dimColor={theme.dimSecondary}> downloading…</Text>
+                <Text color={theme.gray} dimColor={theme.dimSecondary}> {t.downloading}</Text>
               </Text>
               <Gap />
               <Text color={theme.gray} dimColor={theme.dimSecondary}>{indeterminateMeta(phase.progress)}</Text>
@@ -456,7 +459,7 @@ function AppContent({
                   <Spinner type="dots" />
                 </Text>
                 <Text color={theme.gray} dimColor={theme.dimSecondary}>
-                  {phase.refreshing ? ' link expired — grabbing a fresh one…' : ' starting download…'}
+                  {phase.refreshing ? ` ${t.linkExpired}` : ` ${t.startingDownload}`}
                 </Text>
               </Text>
             </>
@@ -467,8 +470,8 @@ function AppContent({
       {phase.name === 'done' && (
         <Box flexDirection="column" alignItems="center">
           <Text>
-            <Text bold color={theme.primary}>✓ yoinked! </Text>
-            <Text color={theme.primary}>find your file in:</Text>
+            <Text bold color={theme.primary}>{t.done} </Text>
+            <Text color={theme.primary}>{t.findFile}</Text>
           </Text>
           <Text color={theme.gray} dimColor={theme.dimSecondary}>{shortenPath(phase.filepath, os.homedir(), 60)}</Text>
           <Gap />

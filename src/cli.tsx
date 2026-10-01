@@ -12,29 +12,29 @@ import {isProbablyUrl} from './lib/platforms.js'
 const VERSION: string = createRequire(import.meta.url)('../package.json').version
 
 const HELP = `
-  yoinks — yoink any video. paste. yoink. done.
+  yoinks — her videoyu yoink'le. yapıştır. yoink'le. bitti.
 
-  Usage
+  Kullanım
     $ yoinks [url]
 
-  Examples
+  Örnekler
     $ yoinks https://youtu.be/dQw4w9WgXcQ
     $ yoinks https://x.com/user/status/123456
-    $ yoinks                 (prompts for a url)
+    $ yoinks                 (url sorar)
 
-  Options
-    --theme <mode>  use auto, light, or dark for this run
-    -h, --help      show this help
-    -v, --version   show version
+  Seçenekler
+    --theme <mod>   bu çalıştırma için auto, light veya dark kullan
+    -h, --help      bu yardımı göster
+    -v, --version   sürümü göster
 
-  Downloads are saved to ~/Downloads.
-  Powered by yt-dlp — YouTube, X, Instagram, Threads, TikTok & 1800+ sites.
+  İndirilenler ~/Downloads klasörüne kaydedilir.
+  yt-dlp ile çalışır — YouTube, X, Instagram, Threads, TikTok & 1800+ site.
 `
 
 const args = parseArgs(process.argv.slice(2))
 
 if (args.error) {
-  console.error(`yoinks: ${args.error}\nTry “yoinks --help” for usage.`)
+  console.error(`yoinks: ${args.error}\nKullanım için “yoinks --help” yaz.`)
   process.exit(1)
 }
 
@@ -95,5 +95,5 @@ await waitUntilExit()
 
 if (isTTY) leaveAltScreen()
 if (outcome.filepath) {
-  console.log(`✓ yoinked → ${outcome.filepath}`)
+  console.log(`✓ yoink'lendi → ${outcome.filepath}`)
 }

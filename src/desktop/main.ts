@@ -61,13 +61,44 @@ let ytdlp = ''
 let session: {url: string; choices: DownloadChoice[]; infoJsonPath: string} | undefined
 let abort: AbortController | undefined
 
-const send = (channel: string, ...args: unknown[]) => win?.webContents.send(channel, ...args)
+// The window can be torn down while a download is still running (the user
+// closes it, or the app is quitting). Touching a destroyed BrowserWindow (or
+// its webContents) throws "Object has been destroyed", and during the native
+// teardown `isDestroyed()` can still report false for a brief moment — so
+// every native touch is guarded *and* wrapped in try/catch.
+const send = (channel: string, ...args: unknown[]) => {
+  if (!win || win.isDestroyed()) return
+  try {
+    win.webContents.send(channel, ...args)
+  } catch {
+    // the renderer is gone — nothing to deliver
+  }
+}
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+function setProgress(value: number, mode?: 'error'): void {
+  if (!win || win.isDestroyed()) return
+  try {
+    if (mode) win.setProgressBar(value, {mode})
+    else win.setProgressBar(value)
+  } catch {
+    // taskbar progress is cosmetic — never let a closing window crash the app
+  }
+}
+
+function flashFrame(): void {
+  if (!win || win.isDestroyed()) return
+  try {
+    win.flashFrame(true)
+  } catch {
+    // window already gone
+  }
+}
 
 function cancelActive(): void {
   abort?.abort()
   abort = undefined
-  win?.setProgressBar(-1)
+  setProgress(-1)
 }
 
 /**
@@ -144,14 +175,14 @@ ipcMain.handle('download', async (_event, index: number) => {
       if (progress.totalBytes) {
         // one bar across every part, so the taskbar never jumps back to zero
         const within = Math.min(1, progress.downloadedBytes / progress.totalBytes)
-        win?.setProgressBar((progress.part + within) / Math.max(progress.totalParts, progress.part + 1))
+        setProgress((progress.part + within) / Math.max(progress.totalParts, progress.part + 1))
       } else {
-        win?.setProgressBar(2) // >1 is indeterminate on Windows
+        setProgress(2) // >1 is indeterminate on Windows
       }
     },
     onProcessing: () => {
       send('download:processing')
-      win?.setProgressBar(2)
+      setProgress(2)
     },
   }
 
@@ -170,12 +201,12 @@ ipcMain.handle('download', async (_event, index: number) => {
       filepath = await download(base, handlers, controller.signal)
     }
     const history = addToHistory(current.url)
-    win?.setProgressBar(-1)
-    if (win && !win.isFocused()) win.flashFrame(true)
+    setProgress(-1)
+    if (win && !win.isFocused()) flashFrame()
     return {ok: true, filepath, history}
   } catch (error) {
     if (controller.signal.aborted) return {ok: false, cancelled: true}
-    win?.setProgressBar(1, {mode: 'error'})
+    setProgress(1, 'error')
     return {ok: false, error: errorMessage(error)}
   } finally {
     if (abort === controller) abort = undefined
@@ -194,7 +225,7 @@ ipcMain.handle('settings:set', (_event, patch: Partial<Settings>) => {
 })
 
 ipcMain.handle('folder:pick', async () => {
-  if (!win) return undefined
+  if (!win || win.isDestroyed()) return undefined
   const result = await dialog.showOpenDialog(win, {
     title: 'Save downloads to…',
     defaultPath: settings.outDir,
@@ -207,10 +238,14 @@ ipcMain.handle('shell:show-item', (_event, filepath: string) => shell.showItemIn
 ipcMain.handle('shell:open-path', (_event, target: string) => shell.openPath(target))
 
 ipcMain.handle('window:palette', (_event, palette: PaletteColors) => {
-  if (!win) return
-  win.setBackgroundColor(palette.background)
-  if (process.platform === 'win32') {
-    win.setTitleBarOverlay({color: palette.background, symbolColor: palette.primary, height: TITLEBAR_HEIGHT})
+  if (!win || win.isDestroyed()) return
+  try {
+    win.setBackgroundColor(palette.background)
+    if (process.platform === 'win32') {
+      win.setTitleBarOverlay({color: palette.background, symbolColor: palette.primary, height: TITLEBAR_HEIGHT})
+    }
+  } catch {
+    // window torn down mid-theme-change
   }
 })
 
@@ -249,8 +284,11 @@ function createWindow(): void {
   win.on('focus', () => win?.flashFrame(false))
   win.once('ready-to-show', () => win?.show())
   win.on('closed', () => {
-    cancelActive()
+    // drop the reference FIRST: cancelActive() touches the (now destroyed)
+    // window for its taskbar progress, and win.isDestroyed() is only true
+    // once Electron has finished tearing the native object down
     win = undefined
+    cancelActive()
   })
 
   void win.loadFile(path.join(__dirname, 'index.html'))
@@ -274,7 +312,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   // `yoinks.exe <url>` while already open: hand the link to the running window
   app.on('second-instance', (_event, argv) => {
-    if (!win) return
+    if (!win || win.isDestroyed()) return
     if (win.isMinimized()) win.restore()
     win.focus()
     const url = urlFromArgv(argv)
@@ -284,5 +322,5 @@ if (!app.requestSingleInstanceLock()) {
   app.setAppUserModelId('com.yoinks.desktop')
   void app.whenReady().then(createWindow)
   app.on('window-all-closed', () => app.quit())
-  app.on('before-quit', cancelActive)
+  app.on('before-quit', () => cancelActive())
 }
